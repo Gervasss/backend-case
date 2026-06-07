@@ -39,8 +39,8 @@ Preencha os valores no `.env`.
 Exemplo para desenvolvimento local:
 
 ```env
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/lead_kanban?schema=public"
-JWT_SECRET="use-uma-string-longa-e-aleatoria"
+DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/DATABASE_NAME?schema=public"
+JWT_SECRET="YOUR_LONG_RANDOM_SECRET"
 JWT_EXPIRES_IN="1d"
 PORT=3000
 CORS_ORIGIN="http://localhost:3001"
