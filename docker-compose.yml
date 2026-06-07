@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lead-kanban-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: lead_kanban
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d lead_kanban"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: .
+    container_name: lead-kanban-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Dentro do Docker, o backend acessa o banco pelo nome do servico: postgres.
+      # No .env local usamos localhost para comandos rodando fora do container.
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/lead_kanban?schema=public
+      # Se o microservico Python estiver rodando fora do Docker, use host.docker.internal.
+      AI_SERVICE_URL: http://host.docker.internal:8000
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
