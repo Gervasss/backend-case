@@ -19,6 +19,11 @@ export default [
       globals: {
         console: 'readonly',
         fetch: 'readonly',
+        describe: 'readonly',
+        expect: 'readonly',
+        it: 'readonly',
+        jest: 'readonly',
+        beforeEach: 'readonly',
         process: 'readonly',
       },
     },

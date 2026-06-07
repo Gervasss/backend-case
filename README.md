@@ -1,8 +1,8 @@
-# Lead Kanban Backend
+# 🚀 Lead Kanban Backend
 
 API REST em NestJS para autenticacao, gestao de leads em funil Kanban e integracao com um microservico de IA em FastAPI.
 
-## Tecnologias
+## 🧰 Tecnologias
 
 - Node.js 22 LTS
 - NestJS 11
@@ -13,7 +13,54 @@ API REST em NestJS para autenticacao, gestao de leads em funil Kanban e integrac
 - Swagger
 - Docker e Docker Compose
 
-## Requisitos
+## 📁 Estrutura do backend
+
+```txt
+backend-case/
+|-- prisma/
+|   |-- migrations/             # Historico de migrations do banco
+|   `-- schema.prisma           # Modelos User, Status e Lead
+|-- src/
+|   |-- common/                 # Decorators e tipos compartilhados
+|   |-- modules/
+|   |   |-- ai/                 # Integracao com microservico FastAPI
+|   |   |-- auth/               # Registro, login, JWT e guard
+|   |   |-- leads/              # CRUD, filtros, Kanban e movimentacao de leads
+|   |   |-- prisma/             # PrismaModule e PrismaService
+|   |   |-- statuses/           # Etapas do pipeline Kanban
+|   |   `-- users/              # Criacao e consulta de usuarios
+|   |-- types/                  # Declaracoes auxiliares de tipos
+|   |-- app.module.ts           # Modulo raiz da aplicacao
+|   `-- main.ts                 # Bootstrap, Swagger, CORS e prefixo /api
+|-- docker-compose.yml          # Backend + PostgreSQL
+|-- Dockerfile                  # Build da API em container
+`-- package.json                # Scripts, dependencias e configuracao do Jest
+```
+
+Os testes ficam ao lado dos services testados, usando a convencao `*.test.ts`. Exemplo: `src/modules/auth/auth.service.test.ts`.
+
+## ✅ Modulos com testes
+
+O backend possui testes unitarios para os principais modulos de regra de negocio:
+
+- `AuthService`: registro, login, normalizacao de e-mail e credenciais invalidas.
+- `LeadsService`: listagem com filtros, criacao, movimentacao e validacao de dono.
+- `StatusesService`: pipeline padrao, ordenacao, ownership e exclusao segura.
+- `UsersService`: criacao de usuario e conflito de e-mail duplicado.
+
+Para executar:
+
+```powershell
+npm test
+```
+
+Para rodar com cobertura:
+
+```powershell
+npm run test:cov
+```
+
+## 📌 Requisitos
 
 Para rodar localmente sem Docker:
 
@@ -26,7 +73,7 @@ Para rodar com Docker:
 - Docker Desktop
 - Docker Compose, ja incluido no Docker Desktop
 
-## Variaveis de ambiente
+## 🔐 Variaveis de ambiente
 
 Crie o arquivo `.env` a partir do exemplo:
 
@@ -49,7 +96,7 @@ AI_SERVICE_URL="http://localhost:8000"
 
 Quando o backend roda dentro do Docker Compose, o `DATABASE_URL` e sobrescrito para usar o host `postgres`, que e o nome do servico Docker. Para rodar localmente fora do Docker, use `localhost`.
 
-## Rodando com Docker Compose
+## 🐳 Rodando com Docker Compose
 
 Este e o caminho mais simples, porque o Compose sobe o PostgreSQL e o backend juntos.
 
@@ -102,7 +149,7 @@ docker compose down -v
 
 Use `-v` com cuidado, pois ele remove o volume do PostgreSQL.
 
-## Rodando localmente sem Docker
+## 💻 Rodando localmente sem Docker
 
 Use este caminho se quiser rodar o NestJS direto na sua maquina com `npm run start:dev`.
 
@@ -203,7 +250,7 @@ Swagger:
 http://localhost:3000/docs
 ```
 
-## Prisma e migrations
+## 🗄️ Prisma e migrations
 
 Durante desenvolvimento, use:
 
@@ -225,7 +272,7 @@ Se quiser aplicar manualmente dentro do container:
 docker compose exec backend npx prisma migrate deploy
 ```
 
-## Endpoints principais
+## 🧭 Endpoints principais
 
 - `POST /api/auth/register`: cria usuario e pipeline padrao
 - `POST /api/auth/login`: retorna JWT
@@ -242,7 +289,7 @@ docker compose exec backend npx prisma migrate deploy
 - `DELETE /api/leads/:id`: remove lead
 - `POST /api/ai/chat`: encaminha mensagens para o microservico FastAPI
 
-## Autenticacao
+## 🛡️ Autenticacao
 
 As rotas protegidas esperam um JWT no header:
 
@@ -256,7 +303,7 @@ O token e retornado em:
 POST /api/auth/login
 ```
 
-## Integracao com frontend e IA
+## 🤖 Integracao com frontend e IA
 
 O frontend NextJS deve chamar esta API em:
 
@@ -286,18 +333,20 @@ Payload esperado:
 }
 ```
 
-## Scripts
+## 🧪 Scripts
 
 ```powershell
 npm run start:dev
 npm run build
 npm run lint
+npm test
+npm run test:cov
 npm run prisma:generate
 npm run prisma:migrate
 npm run prisma:studio
 ```
 
-## Observacoes de seguranca
+## 🔒 Observacoes de seguranca
 
 - Nunca suba o arquivo `.env` para o GitHub.
 - Use um `JWT_SECRET` longo e aleatorio.
