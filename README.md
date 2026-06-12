@@ -19,12 +19,13 @@ API REST em NestJS para autenticacao, gestao de leads em funil Kanban e integrac
 backend-case/
 |-- prisma/
 |   |-- migrations/             # Historico de migrations do banco
-|   `-- schema.prisma           # Modelos User, Status e Lead
+|   `-- schema.prisma           # Modelos User, Status, Lead e Imovel
 |-- src/
 |   |-- common/                 # Decorators e tipos compartilhados
 |   |-- modules/
 |   |   |-- ai/                 # Integracao com microservico FastAPI
 |   |   |-- auth/               # Registro, login, JWT e guard
+|   |   |-- imoveis/            # CRUD de imoveis e vinculo opcional com leads
 |   |   |-- leads/              # CRUD, filtros, Kanban e movimentacao de leads
 |   |   |-- prisma/             # PrismaModule e PrismaService
 |   |   |-- statuses/           # Etapas do pipeline Kanban
@@ -44,6 +45,7 @@ Os testes ficam ao lado dos services testados, usando a convencao `*.test.ts`. E
 O backend possui testes unitarios para os principais modulos de regra de negocio:
 
 - `AuthService`: registro, login, normalizacao de e-mail e credenciais invalidas.
+- `ImoveisService`: listagem, criacao, edicao, exclusao e sincronizacao de valor com lead vinculado.
 - `LeadsService`: listagem com filtros, criacao, movimentacao e validacao de dono.
 - `StatusesService`: pipeline padrao, ordenacao, ownership e exclusao segura.
 - `UsersService`: criacao de usuario e conflito de e-mail duplicado.
@@ -281,6 +283,11 @@ docker compose exec backend npx prisma migrate deploy
 - `POST /api/statuses`: cria status
 - `PATCH /api/statuses/:id`: atualiza status
 - `DELETE /api/statuses/:id`: remove status vazio
+- `GET /api/imoveis`: lista imoveis
+- `GET /api/imoveis/:id`: consulta imovel
+- `POST /api/imoveis`: cria imovel
+- `PATCH /api/imoveis/:id`: edita imovel
+- `DELETE /api/imoveis/:id`: remove imovel
 - `GET /api/leads`: lista leads com filtros `search` e `statusId`
 - `GET /api/leads/kanban`: lista status com leads agrupados
 - `POST /api/leads`: cria lead
