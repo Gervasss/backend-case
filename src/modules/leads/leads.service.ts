@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { ImoveisService } from '../imoveis/imoveis.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StatusesService } from '../statuses/statuses.service';
 import { CreateLeadDto } from './dto/create-lead.dto';
@@ -12,13 +13,14 @@ export class LeadsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly statusesService: StatusesService,
+    private readonly imoveisService: ImoveisService,
   ) {}
 
   async list(ownerId: string, query: ListLeadsQueryDto) {
     const where = this.buildWhere(ownerId, query);
     return this.prisma.lead.findMany({
       where,
-      include: { status: true },
+      include: { status: true, imovel: true },
       orderBy: { updatedAt: 'desc' },
     });
   }
@@ -30,6 +32,7 @@ export class LeadsService {
       include: {
         leads: {
           orderBy: { updatedAt: 'desc' },
+          include: { imovel: true },
         },
       },
     });
@@ -46,7 +49,7 @@ export class LeadsService {
   async get(ownerId: string, id: string) {
     const lead = await this.prisma.lead.findFirst({
       where: { id, ownerId },
-      include: { status: true },
+      include: { status: true, imovel: true },
     });
     if (!lead) {
       throw new NotFoundException('Lead not found.');
@@ -56,9 +59,19 @@ export class LeadsService {
 
   async create(ownerId: string, dto: CreateLeadDto) {
     await this.statusesService.ensureOwnedStatus(ownerId, dto.statusId);
-    return this.prisma.lead.create({
-      data: this.toLeadData(ownerId, dto),
-      include: { status: true },
+    return this.prisma.$transaction(async (prisma) => {
+      const lead = await prisma.lead.create({
+        data: this.toLeadData(ownerId, dto),
+      });
+
+      if (dto.imovel) {
+        await this.imoveisService.createForLead(ownerId, lead.id, dto.imovel, prisma);
+      }
+
+      return prisma.lead.findUniqueOrThrow({
+        where: { id: lead.id },
+        include: { status: true, imovel: true },
+      });
     });
   }
 
@@ -71,7 +84,7 @@ export class LeadsService {
     return this.prisma.lead.update({
       where: { id },
       data: this.toLeadUpdateData(dto),
-      include: { status: true },
+      include: { status: true, imovel: true },
     });
   }
 
@@ -82,7 +95,7 @@ export class LeadsService {
     return this.prisma.lead.update({
       where: { id },
       data: { statusId: dto.statusId },
-      include: { status: true },
+      include: { status: true, imovel: true },
     });
   }
 
@@ -113,7 +126,7 @@ export class LeadsService {
       contactName: dto.contactName,
       email: dto.email,
       phone: dto.phone,
-      value: dto.value,
+      value: dto.imovel?.price ?? dto.value,
       source: dto.source,
       notes: dto.notes,
       nextFollowUp: dto.nextFollowUp ? new Date(dto.nextFollowUp) : undefined,
@@ -122,9 +135,11 @@ export class LeadsService {
   }
 
   private toLeadUpdateData(dto: UpdateLeadDto): Prisma.LeadUncheckedUpdateInput {
+    const { imovel: _imovel, ...leadDto } = dto;
+
     return {
-      ...dto,
-      nextFollowUp: dto.nextFollowUp ? new Date(dto.nextFollowUp) : undefined,
+      ...leadDto,
+      nextFollowUp: leadDto.nextFollowUp ? new Date(leadDto.nextFollowUp) : undefined,
     };
   }
 }

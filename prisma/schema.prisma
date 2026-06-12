@@ -17,6 +17,7 @@ model User {
 
   leads    Lead[]
   statuses Status[]
+  imoveis  Imovel[]
 }
 
 model Status {
@@ -49,10 +50,35 @@ model Lead {
   updatedAt    DateTime  @updatedAt
 
   ownerId  String
-  owner    User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner    User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   statusId String
-  status   Status @relation(fields: [statusId], references: [id])
+  status   Status  @relation(fields: [statusId], references: [id])
+  imovel   Imovel?
 
   @@index([ownerId, statusId])
   @@index([ownerId, company])
+}
+
+model Imovel {
+  id           String   @id @default(uuid())
+  title        String
+  propertyType String?
+  address      String?
+  city         String?
+  state        String?
+  price        Float?
+  bedrooms     Int?
+  bathrooms    Int?
+  areaM2       Float?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownerId String
+  owner   User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  leadId  String? @unique
+  lead    Lead?   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
+  @@index([ownerId, city])
 }

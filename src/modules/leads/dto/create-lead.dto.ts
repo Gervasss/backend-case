@@ -8,7 +8,10 @@ import {
   IsUUID,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { CreateImovelDto } from '../../imoveis/dto/create-imovel.dto';
 
 export class CreateLeadDto {
   @ApiProperty({ example: 'Acme Ltda' })
@@ -55,4 +58,10 @@ export class CreateLeadDto {
   @ApiProperty({ example: '3f054d91-f6ca-4d4a-90fb-7dc8ea61fd2d' })
   @IsUUID()
   statusId: string;
+
+  @ApiProperty({ required: false, type: CreateImovelDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CreateImovelDto)
+  imovel?: CreateImovelDto;
 }

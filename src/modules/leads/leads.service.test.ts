@@ -3,9 +3,11 @@ import { LeadsService } from './leads.service';
 
 describe('LeadsService', () => {
   const prisma = {
+    $transaction: jest.fn(),
     lead: {
       findMany: jest.fn(),
       findFirst: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
@@ -17,12 +19,16 @@ describe('LeadsService', () => {
   const statusesService = {
     ensureOwnedStatus: jest.fn(),
   };
+  const imoveisService = {
+    createForLead: jest.fn(),
+  };
 
   let service: LeadsService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new LeadsService(prisma as never, statusesService as never);
+    prisma.$transaction.mockImplementation((callback) => callback(prisma));
+    service = new LeadsService(prisma as never, statusesService as never, imoveisService as never);
   });
 
   it('lista leads do dono com filtros de busca e status', async () => {
@@ -40,13 +46,14 @@ describe('LeadsService', () => {
           { email: { contains: 'acme', mode: 'insensitive' } },
         ],
       },
-      include: { status: true },
+      include: { status: true, imovel: true },
       orderBy: { updatedAt: 'desc' },
     });
   });
 
   it('cria um lead somente apos validar o dono do status', async () => {
     prisma.lead.create.mockResolvedValue({ id: 'lead-1' });
+    prisma.lead.findUniqueOrThrow.mockResolvedValue({ id: 'lead-1' });
     statusesService.ensureOwnedStatus.mockResolvedValue({ id: 'status-1' });
 
     await service.create('owner-1', {
@@ -72,7 +79,45 @@ describe('LeadsService', () => {
         nextFollowUp: new Date('2026-06-15T14:00:00.000Z'),
         statusId: 'status-1',
       },
-      include: { status: true },
+    });
+    expect(imoveisService.createForLead).not.toHaveBeenCalled();
+    expect(prisma.lead.findUniqueOrThrow).toHaveBeenCalledWith({
+      where: { id: 'lead-1' },
+      include: { status: true, imovel: true },
+    });
+  });
+
+  it('cria o imovel junto ao criar um lead com dados de imovel', async () => {
+    prisma.lead.create.mockResolvedValue({ id: 'lead-1' });
+    prisma.lead.findUniqueOrThrow.mockResolvedValue({ id: 'lead-1' });
+    statusesService.ensureOwnedStatus.mockResolvedValue({ id: 'status-1' });
+
+    await service.create('owner-1', {
+      company: 'Acme',
+      contactName: 'Ana',
+      value: 1000,
+      statusId: 'status-1',
+      imovel: {
+        title: 'Apartamento no Centro',
+        city: 'Sao Paulo',
+        price: 450000,
+      },
+    });
+
+    expect(imoveisService.createForLead).toHaveBeenCalledWith(
+      'owner-1',
+      'lead-1',
+      {
+        title: 'Apartamento no Centro',
+        city: 'Sao Paulo',
+        price: 450000,
+      },
+      prisma,
+    );
+    expect(prisma.lead.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        value: 450000,
+      }),
     });
   });
 
@@ -91,13 +136,13 @@ describe('LeadsService', () => {
 
     expect(prisma.lead.findFirst).toHaveBeenCalledWith({
       where: { id: 'lead-1', ownerId: 'owner-1' },
-      include: { status: true },
+      include: { status: true, imovel: true },
     });
     expect(statusesService.ensureOwnedStatus).toHaveBeenCalledWith('owner-1', 'status-2');
     expect(prisma.lead.update).toHaveBeenCalledWith({
       where: { id: 'lead-1' },
       data: { statusId: 'status-2' },
-      include: { status: true },
+      include: { status: true, imovel: true },
     });
   });
 });
