@@ -33,7 +33,7 @@ services:
       # Se o microservico Python estiver rodando fora do Docker, use host.docker.internal.
       AI_SERVICE_URL: http://host.docker.internal:8000
     ports:
-      - "3000:3000"
+      - "3001:3001"
 
 volumes:
   postgres_data:
