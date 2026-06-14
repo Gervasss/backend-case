@@ -47,7 +47,7 @@ export class ImoveisService {
   }
 
   async update(ownerId: string, id: string, dto: UpdateImovelDto) {
-    const imovel = await this.get(ownerId, id);
+    await this.get(ownerId, id);
     return this.prisma.$transaction(async (prisma) => {
       const updatedImovel = await prisma.imovel.update({
         where: { id },

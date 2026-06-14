@@ -19,7 +19,7 @@ export class AiService {
   async chat(userId: string, dto: ChatDto) {
     const baseUrl = this.config.get<string>('AI_SERVICE_URL') ?? 'http://localhost:8000';
 
-    // O frontend envia a conversa; o backend enriquece com dados do CRM do usuario.
+    // O frontend envia a conversa; o backend enriquece com dados do CRM do usuário.
     const context = await this.buildCrmContext(userId, dto.context, dto.messages);
 
     try {
@@ -79,13 +79,13 @@ export class AiService {
       }),
     ]);
 
-    // Recorte por termos da pergunta: ajuda a IA a focar no lead/imovel citado pelo usuario.
-    const matchedContext = this.buildMatchedContext(messages, recentLeads, imoveis);
+    // Recorte por termos da pergunta: ajuda a IA a focar no lead/imóvel citado pelo usuário.
+    const matchedContext = await this.buildMatchedContext(userId, messages, recentLeads, imoveis);
 
     return JSON.stringify({
       generatedAt: now.toISOString(),
       instructions:
-        'Use somente os dados deste contexto do CRM para responder. Quando faltarem dados, diga que a informacao nao esta cadastrada. Quando matchedCrm existir, use esse recorte como prioridade para resolver cliente e imovel citados na conversa.',
+        'Use somente os dados deste contexto do CRM para responder. Quando faltarem dados, diga que a informação não está cadastrada. Quando matchedCrm existir, use esse recorte como prioridade para resolver cliente e imóvel citados na conversa.',
       extraContext,
       matchedCrm: matchedContext,
       crm: {
@@ -95,7 +95,7 @@ export class AiService {
           upcomingContacts: upcomingContacts.length,
           imoveis: imoveis.length,
         },
-        // Lista geral para respostas amplas: pipeline, contagens, funil e organizacao.
+        // Lista geral para respostas amplas: pipeline, contagens, funil e organização.
         statuses: statuses.map((status) => ({
           id: status.id,
           name: status.name,
@@ -103,7 +103,7 @@ export class AiService {
           order: status.order,
           leadsCount: status._count.leads,
         })),
-        // Leads recentes carregam status e imovel para a IA conseguir responder perguntas do CRM.
+        // Leads recentes carregam status e imóvel para a IA conseguir responder perguntas do CRM.
         recentLeads: recentLeads.map((lead) => ({
           id: lead.id,
           company: lead.company,
@@ -113,7 +113,7 @@ export class AiService {
           value: lead.value,
           source: lead.source,
           notes: lead.notes,
-          nextFollowUp: lead.nextFollowUp?.toISOString(),
+          nextFollowUp: this.formatDate(lead.nextFollowUp),
           createdAt: lead.createdAt.toISOString(),
           updatedAt: lead.updatedAt.toISOString(),
           status: {
@@ -136,17 +136,17 @@ export class AiService {
             }
             : null,
         })),
-        // Agenda curta baseada em nextFollowUp, usada para priorizacao e proximas acoes.
+        // Agenda curta baseada em nextFollowUp, usada para priorização e próximas ações.
         upcomingContacts: upcomingContacts.map((lead) => ({
           id: lead.id,
           company: lead.company,
           contactName: lead.contactName,
           phone: lead.phone,
           email: lead.email,
-          nextFollowUp: lead.nextFollowUp?.toISOString(),
+          nextFollowUp: this.formatDate(lead.nextFollowUp),
           status: lead.status.name,
         })),
-        // Catalogo resumido de imoveis, separado dos leads, para buscas e comparacoes.
+        // Catálogo resumido de imóveis, separado dos leads, para buscas e comparações.
         imoveis: imoveis.map((imovel) => ({
           id: imovel.id,
           title: imovel.title,
@@ -161,17 +161,18 @@ export class AiService {
           notes: imovel.notes,
           updatedAt: imovel.updatedAt.toISOString(),
         })),
-        unavailableData: ['tarefas', 'historico dedicado de interacoes'],
+        unavailableData: ['tarefas', 'histórico dedicado de interações'],
       },
     });
   }
 
-  private buildMatchedContext(
+  private async buildMatchedContext(
+    userId: string,
     messages: ChatDto['messages'],
     leads: LeadWithRelations[],
     imoveis: Imovel[],
   ) {
-    // Usa apenas as ultimas mensagens do usuario para evitar que conversas longas poluam a busca.
+    // Usa apenas as últimas mensagens do usuário para evitar que conversas longas poluam a busca.
     const text = messages
       .filter((message) => message.role === 'user')
       .slice(-4)
@@ -182,6 +183,9 @@ export class AiService {
     if (!terms.length) {
       return null;
     }
+
+    const directMatches = await this.findLeadsByTerms(userId, terms);
+    const candidateLeads = this.uniqueLeads([...directMatches, ...leads]);
 
     // Primeiro encontra imoveis que batem com os termos citados na conversa.
     const matchedImoveis = imoveis.filter((imovel) =>
@@ -202,8 +206,8 @@ export class AiService {
       matchedImoveis.map((imovel) => this.normalizeText(imovel.title)),
     );
 
-    // Depois ranqueia leads por contato, imovel relacionado e termos gerais do lead.
-    const matchedLeads = leads
+    // Depois ranqueia leads por contato, imóvel relacionado e termos gerais do lead.
+    const matchedLeads = candidateLeads
       .map((lead) => {
         const leadText = [
           lead.contactName,
@@ -244,8 +248,8 @@ export class AiService {
     return {
       instructions: [
         'Use estes candidatos como recorte prioritario da conversa atual.',
-        'Se houver um lead com contactName e imovel compativeis com a pergunta, responda sobre esse lead sem pedir nova confirmacao.',
-        'Nao diga que status, valor, follow-up ou notas estao ausentes quando esses campos aparecem neste recorte.',
+        'Se houver um lead com contactName e imóvel compatíveis com a pergunta, responda sobre esse lead sem pedir nova confirmação.',
+        'Não diga que status, valor, follow-up ou notas estão ausentes quando esses campos aparecem neste recorte.',
       ],
       searchTerms: terms,
       leads: matchedLeads.slice(0, 8).map((lead) => this.toLeadContext(lead)),
@@ -253,8 +257,84 @@ export class AiService {
     };
   }
 
+  private async findLeadsByTerms(userId: string, terms: string[]) {
+    const directMatches = await this.prisma.lead.findMany({
+      where: {
+        ownerId: userId,
+        OR: terms.flatMap((term) => [
+          { contactName: { contains: term, mode: 'insensitive' as const } },
+          { company: { contains: term, mode: 'insensitive' as const } },
+          { email: { contains: term, mode: 'insensitive' as const } },
+          { phone: { contains: term, mode: 'insensitive' as const } },
+          { source: { contains: term, mode: 'insensitive' as const } },
+          { notes: { contains: term, mode: 'insensitive' as const } },
+          { status: { name: { contains: term, mode: 'insensitive' as const } } },
+          {
+            imovel: {
+              is: {
+                OR: [
+                  { title: { contains: term, mode: 'insensitive' as const } },
+                  { propertyType: { contains: term, mode: 'insensitive' as const } },
+                  { address: { contains: term, mode: 'insensitive' as const } },
+                  { city: { contains: term, mode: 'insensitive' as const } },
+                  { state: { contains: term, mode: 'insensitive' as const } },
+                  { notes: { contains: term, mode: 'insensitive' as const } },
+                ],
+              },
+            },
+          },
+        ]),
+      },
+      include: { status: true, imovel: true },
+      orderBy: { updatedAt: 'desc' },
+      take: 20,
+    });
+
+    const broadCandidates = await this.prisma.lead.findMany({
+      where: { ownerId: userId },
+      include: { status: true, imovel: true },
+      orderBy: { updatedAt: 'desc' },
+      take: 250,
+    });
+
+    const normalizedMatches = broadCandidates.filter((lead) =>
+      this.includesAnyTerm(
+        [
+          lead.contactName,
+          lead.company,
+          lead.email,
+          lead.phone,
+          lead.source,
+          lead.notes,
+          lead.status.name,
+          lead.imovel?.title,
+          lead.imovel?.propertyType,
+          lead.imovel?.address,
+          lead.imovel?.city,
+          lead.imovel?.state,
+          lead.imovel?.notes,
+        ].join(' '),
+        terms,
+      ),
+    );
+
+    return this.uniqueLeads([...directMatches, ...normalizedMatches]).slice(0, 20);
+  }
+
+  private uniqueLeads(leads: LeadWithRelations[]) {
+    const seen = new Set<string>();
+    return leads.filter((lead) => {
+      if (seen.has(lead.id)) {
+        return false;
+      }
+
+      seen.add(lead.id);
+      return true;
+    });
+  }
+
   private extractSearchTerms(text: string) {
-    // Remove palavras muito genericas para os termos restantes funcionarem como pistas reais.
+    // Remove palavras muito genéricas para os termos restantes funcionarem como pistas reais.
     const ignored = new Set([
       'apartamento',
       'cliente',
@@ -282,7 +362,7 @@ export class AiService {
   }
 
   private includesAnyTerm(value: string, terms: string[]) {
-    // Comparacao normalizada para ignorar acentos e diferenca de maiusculas/minusculas.
+    // Comparação normalizada para ignorar acentos e diferença de maiúsculas/minúsculas.
     const normalized = this.normalizeText(value);
     return terms.some((term) => normalized.includes(term));
   }
@@ -309,7 +389,7 @@ export class AiService {
       value: lead.value,
       source: lead.source,
       notes: lead.notes,
-      nextFollowUp: lead.nextFollowUp?.toISOString(),
+      nextFollowUp: this.formatDate(lead.nextFollowUp),
       createdAt: lead.createdAt.toISOString(),
       updatedAt: lead.updatedAt.toISOString(),
       status: {
@@ -337,5 +417,17 @@ export class AiService {
       notes: imovel.notes,
       updatedAt: imovel.updatedAt.toISOString(),
     };
+  }
+
+  private formatDate(value?: Date | null) {
+    if (!value) {
+      return null;
+    }
+
+    const day = String(value.getUTCDate()).padStart(2, '0');
+    const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+    const year = value.getUTCFullYear();
+
+    return `${day}/${month}/${year}`;
   }
 }

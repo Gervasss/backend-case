@@ -153,7 +153,7 @@ export class LeadsService {
       value: dto.imovel?.price ?? linkedImovelPrice ?? dto.value,
       source: dto.source,
       notes: dto.notes,
-      nextFollowUp: dto.nextFollowUp ? new Date(dto.nextFollowUp) : undefined,
+      nextFollowUp: this.parseDateOnly(dto.nextFollowUp),
       statusId: dto.statusId,
       imovelId: dto.imovelId,
     };
@@ -169,8 +169,20 @@ export class LeadsService {
     return {
       ...leadDto,
       value: linkedImovelPrice ?? leadDto.value,
-      nextFollowUp: leadDto.nextFollowUp ? new Date(leadDto.nextFollowUp) : undefined,
+      nextFollowUp: this.parseDateOnly(leadDto.nextFollowUp),
     };
+  }
+
+  private parseDateOnly(value?: string) {
+    if (!value) {
+      return undefined;
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return new Date(`${value}T12:00:00.000Z`);
+    }
+
+    return new Date(value);
   }
 
   private async ensureOwnedImovel(ownerId: string, id: string) {

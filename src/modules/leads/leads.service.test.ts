@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { LeadsService } from './leads.service';
 
 describe('LeadsService', () => {
@@ -65,7 +65,7 @@ describe('LeadsService', () => {
       email: 'ana@acme.com',
       value: 1000,
       statusId: 'status-1',
-      nextFollowUp: '2026-06-15T14:00:00.000Z',
+      nextFollowUp: '2026-06-15',
     });
 
     expect(statusesService.ensureOwnedStatus).toHaveBeenCalledWith('owner-1', 'status-1');
@@ -79,7 +79,7 @@ describe('LeadsService', () => {
         value: 1000,
         source: undefined,
         notes: undefined,
-        nextFollowUp: new Date('2026-06-15T14:00:00.000Z'),
+        nextFollowUp: new Date('2026-06-15T12:00:00.000Z'),
         statusId: 'status-1',
         imovelId: undefined,
       },
