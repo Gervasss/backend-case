@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ImoveisService } from '../imoveis/imoveis.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -59,13 +59,27 @@ export class LeadsService {
 
   async create(ownerId: string, dto: CreateLeadDto) {
     await this.statusesService.ensureOwnedStatus(ownerId, dto.statusId);
+
+    if (dto.imovel && dto.imovelId) {
+      throw new BadRequestException('Use either imovelId or imovel data, not both.');
+    }
+
+    const linkedImovel = dto.imovelId ? await this.ensureOwnedImovel(ownerId, dto.imovelId) : null;
+
     return this.prisma.$transaction(async (prisma) => {
       const lead = await prisma.lead.create({
-        data: this.toLeadData(ownerId, dto),
+        data: this.toLeadData(ownerId, dto, linkedImovel?.price),
       });
 
       if (dto.imovel) {
-        await this.imoveisService.createForLead(ownerId, lead.id, dto.imovel, prisma);
+        const imovel = await this.imoveisService.createForLead(ownerId, dto.imovel, prisma);
+        await prisma.lead.update({
+          where: { id: lead.id },
+          data: {
+            imovelId: imovel.id,
+            value: imovel.price ?? dto.value,
+          },
+        });
       }
 
       return prisma.lead.findUniqueOrThrow({
@@ -81,9 +95,15 @@ export class LeadsService {
       await this.statusesService.ensureOwnedStatus(ownerId, dto.statusId);
     }
 
+    if (dto.imovel && dto.imovelId) {
+      throw new BadRequestException('Use either imovelId or imovel data, not both.');
+    }
+
+    const linkedImovel = dto.imovelId ? await this.ensureOwnedImovel(ownerId, dto.imovelId) : null;
+
     return this.prisma.lead.update({
       where: { id },
-      data: this.toLeadUpdateData(dto),
+      data: this.toLeadUpdateData(dto, linkedImovel?.price),
       include: { status: true, imovel: true },
     });
   }
@@ -119,27 +139,49 @@ export class LeadsService {
     return where;
   }
 
-  private toLeadData(ownerId: string, dto: CreateLeadDto): Prisma.LeadUncheckedCreateInput {
+  private toLeadData(
+    ownerId: string,
+    dto: CreateLeadDto,
+    linkedImovelPrice?: number | null,
+  ): Prisma.LeadUncheckedCreateInput {
     return {
       ownerId,
       company: dto.company,
       contactName: dto.contactName,
       email: dto.email,
       phone: dto.phone,
-      value: dto.imovel?.price ?? dto.value,
+      value: dto.imovel?.price ?? linkedImovelPrice ?? dto.value,
       source: dto.source,
       notes: dto.notes,
       nextFollowUp: dto.nextFollowUp ? new Date(dto.nextFollowUp) : undefined,
       statusId: dto.statusId,
+      imovelId: dto.imovelId,
     };
   }
 
-  private toLeadUpdateData(dto: UpdateLeadDto): Prisma.LeadUncheckedUpdateInput {
-    const { imovel: _imovel, ...leadDto } = dto;
+  private toLeadUpdateData(
+    dto: UpdateLeadDto,
+    linkedImovelPrice?: number | null,
+  ): Prisma.LeadUncheckedUpdateInput {
+    const { imovel, ...leadDto } = dto;
+    void imovel;
 
     return {
       ...leadDto,
+      value: linkedImovelPrice ?? leadDto.value,
       nextFollowUp: leadDto.nextFollowUp ? new Date(leadDto.nextFollowUp) : undefined,
     };
+  }
+
+  private async ensureOwnedImovel(ownerId: string, id: string) {
+    const imovel = await this.prisma.imovel.findFirst({
+      where: { id, ownerId },
+    });
+
+    if (!imovel) {
+      throw new NotFoundException('Imovel not found.');
+    }
+
+    return imovel;
   }
 }

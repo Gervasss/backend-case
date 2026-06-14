@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { LeadsService } from './leads.service';
 
 describe('LeadsService', () => {
@@ -14,6 +14,9 @@ describe('LeadsService', () => {
     },
     status: {
       findMany: jest.fn(),
+    },
+    imovel: {
+      findFirst: jest.fn(),
     },
   };
   const statusesService = {
@@ -78,6 +81,7 @@ describe('LeadsService', () => {
         notes: undefined,
         nextFollowUp: new Date('2026-06-15T14:00:00.000Z'),
         statusId: 'status-1',
+        imovelId: undefined,
       },
     });
     expect(imoveisService.createForLead).not.toHaveBeenCalled();
@@ -89,8 +93,10 @@ describe('LeadsService', () => {
 
   it('cria o imovel junto ao criar um lead com dados de imovel', async () => {
     prisma.lead.create.mockResolvedValue({ id: 'lead-1' });
+    prisma.lead.update.mockResolvedValue({ id: 'lead-1', imovelId: 'imovel-1' });
     prisma.lead.findUniqueOrThrow.mockResolvedValue({ id: 'lead-1' });
     statusesService.ensureOwnedStatus.mockResolvedValue({ id: 'status-1' });
+    imoveisService.createForLead.mockResolvedValue({ id: 'imovel-1', price: 450000 });
 
     await service.create('owner-1', {
       company: 'Acme',
@@ -106,7 +112,6 @@ describe('LeadsService', () => {
 
     expect(imoveisService.createForLead).toHaveBeenCalledWith(
       'owner-1',
-      'lead-1',
       {
         title: 'Apartamento no Centro',
         city: 'Sao Paulo',
@@ -118,6 +123,118 @@ describe('LeadsService', () => {
       data: expect.objectContaining({
         value: 450000,
       }),
+    });
+    expect(prisma.lead.update).toHaveBeenCalledWith({
+      where: { id: 'lead-1' },
+      data: {
+        imovelId: 'imovel-1',
+        value: 450000,
+      },
+    });
+  });
+
+  it('cria um lead vinculando um imovel existente do dono', async () => {
+    prisma.imovel.findFirst.mockResolvedValue({
+      id: 'imovel-1',
+      ownerId: 'owner-1',
+      price: 450000,
+    });
+    prisma.lead.create.mockResolvedValue({ id: 'lead-1' });
+    prisma.lead.findUniqueOrThrow.mockResolvedValue({ id: 'lead-1', imovel: { id: 'imovel-1' } });
+    statusesService.ensureOwnedStatus.mockResolvedValue({ id: 'status-1' });
+
+    await service.create('owner-1', {
+      company: 'Acme',
+      contactName: 'Ana',
+      value: 1000,
+      statusId: 'status-1',
+      imovelId: 'imovel-1',
+    });
+
+    expect(prisma.imovel.findFirst).toHaveBeenCalledWith({
+      where: { id: 'imovel-1', ownerId: 'owner-1' },
+    });
+    expect(prisma.lead.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        value: 450000,
+        imovelId: 'imovel-1',
+      }),
+    });
+  });
+
+  it('permite que dois leads usem o mesmo imovel', async () => {
+    prisma.imovel.findFirst.mockResolvedValue({
+      id: 'imovel-1',
+      ownerId: 'owner-1',
+      price: 450000,
+    });
+    prisma.lead.create.mockResolvedValue({ id: 'lead-1' });
+    prisma.lead.findUniqueOrThrow.mockResolvedValue({ id: 'lead-1', imovel: { id: 'imovel-1' } });
+    statusesService.ensureOwnedStatus.mockResolvedValue({ id: 'status-1' });
+
+    await service.create('owner-1', {
+      company: 'Acme',
+      contactName: 'Ana',
+      statusId: 'status-1',
+      imovelId: 'imovel-1',
+    });
+
+    expect(prisma.lead.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        imovelId: 'imovel-1',
+      }),
+    });
+  });
+
+  it('edita um lead antigo para vincular o imovel selecionado', async () => {
+    prisma.lead.findFirst.mockResolvedValue({
+      id: 'lead-1',
+      ownerId: 'owner-1',
+      imovel: null,
+    });
+    prisma.imovel.findFirst.mockResolvedValue({
+      id: 'imovel-1',
+      ownerId: 'owner-1',
+      price: 450000,
+    });
+    prisma.lead.update.mockResolvedValue({ id: 'lead-1', imovel: { id: 'imovel-1' } });
+
+    await service.update('owner-1', 'lead-1', { imovelId: 'imovel-1' });
+
+    expect(prisma.lead.update).toHaveBeenCalledWith({
+      where: { id: 'lead-1' },
+      data: {
+        imovelId: 'imovel-1',
+        value: 450000,
+        nextFollowUp: undefined,
+      },
+      include: { status: true, imovel: true },
+    });
+  });
+
+  it('troca o imovel do lead sem alterar outros leads do imovel anterior', async () => {
+    prisma.lead.findFirst.mockResolvedValue({
+      id: 'lead-1',
+      ownerId: 'owner-1',
+      imovel: { id: 'imovel-old' },
+    });
+    prisma.imovel.findFirst.mockResolvedValue({
+      id: 'imovel-new',
+      ownerId: 'owner-1',
+      price: 650000,
+    });
+    prisma.lead.update.mockResolvedValue({ id: 'lead-1', imovel: { id: 'imovel-new' } });
+
+    await service.update('owner-1', 'lead-1', { imovelId: 'imovel-new' });
+
+    expect(prisma.lead.update).toHaveBeenCalledWith({
+      where: { id: 'lead-1' },
+      data: {
+        imovelId: 'imovel-new',
+        value: 650000,
+        nextFollowUp: undefined,
+      },
+      include: { status: true, imovel: true },
     });
   });
 

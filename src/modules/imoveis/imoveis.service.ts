@@ -13,7 +13,7 @@ export class ImoveisService {
   list(ownerId: string) {
     return this.prisma.imovel.findMany({
       where: { ownerId },
-      include: { lead: true },
+      include: { leads: true },
       orderBy: { updatedAt: 'desc' },
     });
   }
@@ -21,7 +21,7 @@ export class ImoveisService {
   async get(ownerId: string, id: string) {
     const imovel = await this.prisma.imovel.findFirst({
       where: { id, ownerId },
-      include: { lead: true },
+      include: { leads: true },
     });
     if (!imovel) {
       throw new NotFoundException('Imovel not found.');
@@ -32,18 +32,17 @@ export class ImoveisService {
   create(ownerId: string, dto: CreateImovelDto) {
     return this.prisma.imovel.create({
       data: this.toImovelData(ownerId, dto),
-      include: { lead: true },
+      include: { leads: true },
     });
   }
 
   createForLead(
     ownerId: string,
-    leadId: string,
     dto: CreateImovelDto,
     prisma: PrismaExecutor = this.prisma,
   ) {
     return prisma.imovel.create({
-      data: this.toImovelData(ownerId, dto, leadId),
+      data: this.toImovelData(ownerId, dto),
     });
   }
 
@@ -53,12 +52,12 @@ export class ImoveisService {
       const updatedImovel = await prisma.imovel.update({
         where: { id },
         data: this.toImovelUpdateData(dto),
-        include: { lead: true },
+        include: { leads: true },
       });
 
-      if (imovel.leadId && dto.price !== undefined) {
-        await prisma.lead.update({
-          where: { id: imovel.leadId },
+      if (dto.price !== undefined) {
+        await prisma.lead.updateMany({
+          where: { ownerId, imovelId: id },
           data: { value: dto.price },
         });
       }
@@ -68,27 +67,20 @@ export class ImoveisService {
   }
 
   async remove(ownerId: string, id: string) {
-    const imovel = await this.get(ownerId, id);
+    await this.get(ownerId, id);
     return this.prisma.$transaction(async (prisma) => {
-      if (imovel.leadId) {
-        await prisma.lead.update({
-          where: { id: imovel.leadId },
-          data: { value: null },
-        });
-      }
+      await prisma.lead.updateMany({
+        where: { ownerId, imovelId: id },
+        data: { imovelId: null, value: null },
+      });
 
       return prisma.imovel.delete({ where: { id } });
     });
   }
 
-  private toImovelData(
-    ownerId: string,
-    dto: CreateImovelDto,
-    leadId?: string,
-  ): Prisma.ImovelUncheckedCreateInput {
+  private toImovelData(ownerId: string, dto: CreateImovelDto): Prisma.ImovelUncheckedCreateInput {
     return {
       ownerId,
-      leadId,
       title: dto.title,
       propertyType: dto.propertyType,
       address: dto.address,

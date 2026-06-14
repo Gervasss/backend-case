@@ -59,6 +59,15 @@ export class CreateLeadDto {
   @IsUUID()
   statusId: string;
 
+  @ApiProperty({
+    example: '3f054d91-f6ca-4d4a-90fb-7dc8ea61fd2d',
+    required: false,
+    description: 'Existing imovel to link to this lead.',
+  })
+  @IsOptional()
+  @IsUUID()
+  imovelId?: string;
+
   @ApiProperty({ required: false, type: CreateImovelDto })
   @IsOptional()
   @ValidateNested()

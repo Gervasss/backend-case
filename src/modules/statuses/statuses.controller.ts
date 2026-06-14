@@ -1,9 +1,10 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { AuthUser } from '../../common/types/auth-user.type';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateStatusDto } from './dto/create-status.dto';
+import { DeleteStatusQueryDto } from './dto/delete-status-query.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { StatusesService } from './statuses.service';
 
@@ -30,7 +31,11 @@ export class StatusesController {
   }
 
   @Delete(':id')
-  remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.statusesService.remove(user.id, id);
+  remove(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Query() query: DeleteStatusQueryDto,
+  ) {
+    return this.statusesService.remove(user.id, id, query.moveToStatusId);
   }
 }

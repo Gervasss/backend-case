@@ -12,7 +12,7 @@ describe('ImoveisService', () => {
       delete: jest.fn(),
     },
     lead: {
-      update: jest.fn(),
+      updateMany: jest.fn(),
     },
   };
 
@@ -31,7 +31,7 @@ describe('ImoveisService', () => {
 
     expect(prisma.imovel.findMany).toHaveBeenCalledWith({
       where: { ownerId: 'owner-1' },
-      include: { lead: true },
+      include: { leads: true },
       orderBy: { updatedAt: 'desc' },
     });
   });
@@ -47,7 +47,6 @@ describe('ImoveisService', () => {
     expect(prisma.imovel.create).toHaveBeenCalledWith({
       data: {
         ownerId: 'owner-1',
-        leadId: undefined,
         title: 'Apartamento no Centro',
         propertyType: undefined,
         address: undefined,
@@ -59,31 +58,31 @@ describe('ImoveisService', () => {
         areaM2: undefined,
         notes: undefined,
       },
-      include: { lead: true },
+      include: { leads: true },
     });
   });
 
-  it('atualiza o valor do lead quando o imovel vinculado muda de valor', async () => {
-    prisma.imovel.findFirst.mockResolvedValue({ id: 'imovel-1', leadId: 'lead-1' });
+  it('atualiza o valor dos leads quando o imovel vinculado muda de valor', async () => {
+    prisma.imovel.findFirst.mockResolvedValue({ id: 'imovel-1', leads: [{ id: 'lead-1' }] });
     prisma.imovel.update.mockResolvedValue({ id: 'imovel-1', price: 500000 });
 
     await service.update('owner-1', 'imovel-1', { price: 500000 });
 
-    expect(prisma.lead.update).toHaveBeenCalledWith({
-      where: { id: 'lead-1' },
+    expect(prisma.lead.updateMany).toHaveBeenCalledWith({
+      where: { ownerId: 'owner-1', imovelId: 'imovel-1' },
       data: { value: 500000 },
     });
   });
 
-  it('limpa o valor do lead ao remover um imovel vinculado', async () => {
-    prisma.imovel.findFirst.mockResolvedValue({ id: 'imovel-1', leadId: 'lead-1' });
+  it('limpa o valor e vinculo dos leads ao remover um imovel vinculado', async () => {
+    prisma.imovel.findFirst.mockResolvedValue({ id: 'imovel-1', leads: [{ id: 'lead-1' }] });
     prisma.imovel.delete.mockResolvedValue({ id: 'imovel-1' });
 
     await service.remove('owner-1', 'imovel-1');
 
-    expect(prisma.lead.update).toHaveBeenCalledWith({
-      where: { id: 'lead-1' },
-      data: { value: null },
+    expect(prisma.lead.updateMany).toHaveBeenCalledWith({
+      where: { ownerId: 'owner-1', imovelId: 'imovel-1' },
+      data: { imovelId: null, value: null },
     });
     expect(prisma.imovel.delete).toHaveBeenCalledWith({ where: { id: 'imovel-1' } });
   });

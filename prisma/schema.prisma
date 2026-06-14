@@ -53,10 +53,12 @@ model Lead {
   owner    User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   statusId String
   status   Status  @relation(fields: [statusId], references: [id])
-  imovel   Imovel?
+  imovelId String?
+  imovel   Imovel? @relation(fields: [imovelId], references: [id], onDelete: SetNull)
 
   @@index([ownerId, statusId])
   @@index([ownerId, company])
+  @@index([ownerId, imovelId])
 }
 
 model Imovel {
@@ -76,8 +78,7 @@ model Imovel {
 
   ownerId String
   owner   User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  leadId  String? @unique
-  lead    Lead?   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leads   Lead[]
 
   @@index([ownerId])
   @@index([ownerId, city])
