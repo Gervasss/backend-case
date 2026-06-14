@@ -47,6 +47,7 @@ backend-case/
 - Ao editar o preco de um imovel, o backend sincroniza o `value` dos leads ligados a ele.
 - Ao apagar um imovel, os leads ligados ficam sem `imovelId` e com `value` nulo.
 - A IA recebe um contexto montado pelo backend com dados do CRM do usuario autenticado.
+- O backend monta `matchedCrm` a partir das ultimas mensagens para priorizar leads/imoveis citados na conversa.
 
 ## Variaveis de ambiente
 
@@ -288,9 +289,29 @@ O campo `context` do frontend e opcional. O backend monta um novo contexto em JS
 - `crm.recentLeads`: ultimos leads atualizados com status e imovel relacionado.
 - `crm.upcomingContacts`: proximos contatos baseados em `nextFollowUp`.
 - `crm.imoveis`: catalogo resumido de imoveis.
-- `matchedCrm`: recorte priorizado por termos das ultimas mensagens do usuario.
+- `matchedCrm`: recorte priorizado por termos das ultimas mensagens do usuario, ranqueando leads por cliente, status e imovel relacionado.
 - `extraContext`: texto opcional enviado pelo frontend.
 - `unavailableData`: dados ainda sem tabela propria, como tarefas e historico dedicado.
+
+`matchedCrm` serve para perguntas contextuais como:
+
+```txt
+quero saber quais passos tomar com cliente gervasio
+imovel apartamento candeias
+```
+
+Nesse caso, o backend usa as ultimas mensagens, extrai termos relevantes e cruza:
+
+- `lead.contactName`
+- `lead.company`
+- `lead.status`
+- `lead.imovelId`
+- `lead.imovel.title`
+- dados do catalogo de `imoveis`
+
+Quando um lead bate com o cliente e o imovel citados, ele aparece primeiro em
+`matchedCrm.leads`, com status, valor, proximo follow-up, observacoes e imovel
+relacionado.
 
 Payload enviado pelo backend ao microservico configurado em `AI_SERVICE_URL`:
 
@@ -303,7 +324,7 @@ Payload enviado pelo backend ao microservico configurado em `AI_SERVICE_URL`:
       "content": "Quais leads devo priorizar hoje?"
     }
   ],
-  "context": "{\"generatedAt\":\"2026-06-14T12:00:00.000Z\",\"matchedCrm\":null,\"crm\":{\"statuses\":[],\"recentLeads\":[],\"upcomingContacts\":[],\"imoveis\":[]}}"
+  "context": "{\"generatedAt\":\"2026-06-14T12:00:00.000Z\",\"matchedCrm\":{\"searchTerms\":[\"gervasio\",\"candeias\"],\"leads\":[]},\"crm\":{\"statuses\":[],\"recentLeads\":[],\"upcomingContacts\":[],\"imoveis\":[]}}"
 }
 ```
 
